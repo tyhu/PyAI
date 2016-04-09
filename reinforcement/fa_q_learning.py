@@ -14,7 +14,7 @@ class FA_MDP(object):
         self.action2idx = dict([(act,idx) for idx, act in enumerate(actionlst)])
         self.actionlst = actionlst
         actnum = len(self.actionlst)
-        self.theta = np.zeros((actnum,feat_dim),dtype='float32')
+        self.theta = 0.1*np.random.rand(actnum,feat_dim)
 
     def Init_From_History(self, history):
         feat_dim = history[0][0].shape[0]
@@ -49,13 +49,15 @@ class FA_MDP(object):
 
     ### BatchQLearn: conduct q learning using history in matrixs format
     def BatchQLearn(self, state_mat, act_vec, r_vec, state2_mat, ld = 1):
+        datanum = state_mat.shape[0]
         for it in range(self.iternum):
-            print 'iteration: ', it
+            print self.BResidual(state_mat, act_vec, r_vec, state2_mat, ld)
+            #print 'iteration: ', it
             target = r_vec + self.gamma*np.max(state2_mat.dot(self.theta.T),axis=1) #project?
             for actidx in range(len(self.actionlst)):
                 actidxs = np.where(act_vec==self.actionlst[actidx])
                 target_a = target[actidxs]
-                dTheta = state_mat[actidxs].T.dot(target_a - state_mat[actidxs].dot(self.theta[actidx].T))+ld*self.theta[actidx]
+                dTheta = -state_mat[actidxs].T.dot(target_a - state_mat[actidxs].dot(self.theta[actidx].T))/datanum+ld*self.theta[actidx]
                 self.theta[actidx] -= self.alpha*dTheta
 
     
@@ -73,6 +75,9 @@ class FA_MDP(object):
     def Policy(self, state_vec):
         actidx = np.argmax(self.theta.dot(state_vec))
         return self.actionlst[actidx]
+
+    def GetQValues(self,state_vec):
+        return self.theta.dot(state_vec).tolist()
 
     ### print theta here
     def PrintPolicy(self):
