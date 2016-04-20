@@ -119,3 +119,11 @@ def RandomPerm(Xtrain,ytrain):
     ytrain_s = ytrain[per]
     return Xtrain_s, ytrain_s
 
+def random_perm2file(infn,outfn):
+    lst = []
+    for line in file(infn,'r'):
+        lst.append(line.strip())
+    idxs = np.random.permutation(len(lst))
+    outfile = file(outfn,'w')
+    for i in idxs: outfile.write(lst[idxs[i]]+'\n')
+    outfile.close()
