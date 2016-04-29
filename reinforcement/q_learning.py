@@ -42,7 +42,7 @@ class MyMDP(object):
 
     def q_learn(self, history):
         his_len = len(history)
-        history_idxs = self.Map2Idx(history)
+        history_idxs = self.map2idx(history)
         for it in range(self.iternum):
             for idx in range(his_len):
                 stateidx = history_idxs[idx][0]
@@ -57,14 +57,27 @@ class MyMDP(object):
                         self.Qfunc[stateidx][actidx]*(1-self.alpha) + \
                         (reward+self.gamma*max(self.Qfunc[stateidx2]))*self.alpha
 
-    def policy(self,state):
-        stateidx = self.state2idx[state]
+    def policy(self,state,distance_func=None):
+        try:
+            stateidx = self.state2idx[state]
+        except KeyError:
+            nearest = self.nearest_state(state,distance_func)
+            stateidx = self.state2idx[nearest]
         actidx = self.Qfunc[stateidx].index(max(self.Qfunc[stateidx]))
         return self.actionlst[actidx]
 
     def print_policy(self):
         for idx, state in enumerate(self.statelst):
             print idx, '. state: ', state, ' action: ', self.policy(state)
+
+    def nearest_state(self,state,distance_func):
+        min_distance = -1
+        for idx, state2 in enumerate(self.statelst):
+            distance = distance_func(state,state2)
+            if min_distance==-1 or min_distance>distance:
+                nearest = state2
+                min_distance = distance
+        return nearest
 
 def TestFunc():
     print 'test'
