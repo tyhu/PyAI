@@ -127,3 +127,7 @@ def random_perm2file(infn,outfn):
     outfile = file(outfn,'w')
     for i in idxs: outfile.write(lst[idxs[i]]+'\n')
     outfile.close()
+
+### map the label name array (ytrain, ytest)
+def label_to_index(class_lst,y):
+    return np.array([class_lst.index(t) for t in y.tolist()])
