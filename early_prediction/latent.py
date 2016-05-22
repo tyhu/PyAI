@@ -1,6 +1,7 @@
 import sys
 sys.path.append('../util')
 from util_ml import *
+import copy
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 
@@ -8,12 +9,13 @@ from sklearn.linear_model import LogisticRegression
 ###  X -- training accumulated features: dims (datanum,featnum,max_time_axis)
 ###  y -- labels
 ###  l_tr -- true length of each sequence
-def latent_predict(X,y,l_tr,ld):
+def latent_predict(X,y,l_tr,ld,default_clf):
     maxl = X.shape[2]
     l_ceil = np.ceil(l_tr).astype('int')
     datanum = X.shape[0]
-    clf = LogisticRegression(C=10000,penalty='l1')
+    #clf = LogisticRegression(C=10000,penalty='l1')
     #clf = LogisticRegression(C=0.001)
+    clf = copy.copy(default_clf)
     clf.fit(X[:,:,-1],y)
     iternum = 10
     #print X.shape
@@ -28,13 +30,15 @@ def latent_predict(X,y,l_tr,ld):
             y_add = [y[idx]]*X_add.shape[0]
             Xtrain = X_add if Xtrain is None else np.concatenate((Xtrain,X_add),axis=0)
             ytrain+=y_add
-        clf = LogisticRegression(C=1000,penalty='l1')
-        print Xtrain.shape
+        #clf = LogisticRegression(C=1000,penalty='l1')
+        clf = copy.copy(default_clf)
+        #print Xtrain.shape
         clf.fit(Xtrain,ytrain)
 
     Xtrain = None
     ytrain = []
-    clf2 = LogisticRegression(C=1000,penalty='l1')
+    #clf2 = LogisticRegression(C=1000,penalty='l1')
+    clf2 = copy.copy(default_clf)
     for idx in range(datanum):
         l = min(l_ceil[idx],maxl)
         v = infer(clf,X[idx,:,:].T,y[idx],l,ld).astype('int')
