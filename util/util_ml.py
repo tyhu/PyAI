@@ -61,6 +61,15 @@ def KFold(X,y,k=5):
         ytest = y[testlst]
         yield Xtrain, ytrain, Xtest, ytest
 
+
+def KFold_withl(X,y,l,k=5):
+    foldsize = int(X.shape[0]/k)
+    for idx in range(k):
+        testlst = range(idx*foldsize,idx*foldsize+foldsize)
+        Xtrain,ytrain,ltrain = np.delete(X,testlst,0),np.delete(y,testlst,0),np.delete(l,testlst,0)
+        Xtest,ytest,ltest = X[testlst],y[testlst],l[testlst]
+        yield Xtrain,ytrain,ltrain,Xtest,ytest,ltest
+
 def LeaveOneOut(X,y):
     datanum, featnum = X.shape
     for idx in range(datanum):

@@ -4,7 +4,7 @@
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation
 from keras.layers import SimpleRNN
-from keras.regularizers import l2, activity_l2
+from keras.regularizers import l2, activity_l2, l1
 
 ### recurrent neural network mapping feature sequence to one label
 class KerasRNN(object):
