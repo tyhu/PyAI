@@ -70,6 +70,20 @@ def KFold_withl(X,y,l,k=5):
         Xtest,ytest,ltest = X[testlst],y[testlst],l[testlst]
         yield Xtrain,ytrain,ltrain,Xtest,ytest,ltest
 
+def Batch_KFold_withl(X,y,l,bids,k=5):
+    bidset = list(set(bids))
+    for idx in range(k):
+        bid_fold = []
+        for jdx in range(len(bidset)):
+            if jdx%k==idx: bid_fold.append(bidset[jdx])
+        testlst = []
+        for jdx in range(X.shape[0]):
+            if bids[jdx] in bid_fold: testlst.append(jdx)
+        Xtrain,ytrain,ltrain = np.delete(X,testlst,0),np.delete(y,testlst,0),np.delete(l,testlst,0)
+        Xtest,ytest,ltest = X[testlst],y[testlst],l[testlst]
+        yield Xtrain,ytrain,ltrain,Xtest,ytest,ltest
+
+
 def LeaveOneOut(X,y):
     datanum, featnum = X.shape
     for idx in range(datanum):

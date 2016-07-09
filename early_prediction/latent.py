@@ -90,7 +90,7 @@ def loss(clf,X,y,l):
         loss_vec = 1-loss_mat[:l,yidx]
     elif 'SVC' in type_str:
         if len(class_vec)==2:
-            yidx = 1 if yidx==0 else -1
+            yidx = 1 if yidx==1 else -1
             loss_vec = 1-clf.decision_function(X)*yidx
             loss_vec = np.maximum(loss_vec,np.zeros_like(loss_vec))  # hinge loss
     return loss_vec
