@@ -2,6 +2,13 @@
 ### adaptive edit distance
 
 import sys
+import subprocess
+
+def g2p(s):    
+    g2pEXE = '/home2/tingyaoh/flite/flite-2.0.0-release/bin/t2p'
+    p = subprocess.Popen([g2pEXE, s], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = p.communicate()
+    return out.strip()
 
 class EditDistanceUtil(object):
 
@@ -37,4 +44,7 @@ class EditDistanceUtil(object):
 
 if __name__=='__main__':
     eUtil = EditDistanceUtil()
-    print eUtil.phonelstSplit('pau ae1 p')
+    #print eUtil.phonelstSplit('pau ae1 p')
+    for line in file('student.txt'):
+        lst = g2p(line).split()[1:-1]
+        print ' '.join(lst)

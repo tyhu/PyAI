@@ -133,7 +133,7 @@ class NoisyChannelModel(object):
         for i in range(l):
             if s[i]>0: stat[:,i]/=s[i]
         #print stat.tolist()
-        alpha = 0.1
+        alpha = 0.05
         self.distMat = self.distMat*(1-alpha)+stat*alpha
 
 if __name__=='__main__':
