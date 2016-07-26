@@ -1,0 +1,42 @@
+[
+    {
+        "utt": "Recommend a movie for me",
+        "intent": "request_recommend"
+    },
+    {
+        "utt": "tell me a good movie",
+        "intent": "request_recommend"
+    },
+    {
+        "utt": "I would like watch a movie tonight",
+        "intent": "request_recommend"
+    },
+    {
+        "utt": "Do you have something new",
+        "intent": "request_recommend"
+    },
+    {
+        "utt": "tell me another one",
+        "intent": "request_recommend"
+    },
+    {
+        "utt": "I like Tom Cruise",
+        "intent": "inform_preference",
+        "entity":{
+            "type": "actor",
+            "value": "Tom Cruise"
+        }
+    },
+    {
+        "utt": "Matt Demon is good",
+        "intent": "inform_preference",
+        "entity":{
+            "type": "actor",
+            "value": "Matt Demon"
+        }
+    },
+    {
+        "utt": "good bye",
+        "intent": "say_goodbye"
+    }
+]

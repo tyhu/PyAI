@@ -1,0 +1,31 @@
+[
+    {
+        "label": "request_recommend"
+    },
+    {
+        "label": "inform_preference",
+        "entities": [
+            {
+                "type": "actor",
+                "optional": true
+            },
+            {
+                "type": "movie",
+                "optional": true
+            },
+            {
+                "type": "director",
+                "optional": true
+            }
+        ]
+    },
+    {
+        "label": "confirm_yes"
+    },
+    {
+        "label": "confirm_no"
+    },
+    {
+        "label": "say_goodbye"
+    }
+]
