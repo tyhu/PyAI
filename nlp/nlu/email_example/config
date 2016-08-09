@@ -1,0 +1,20 @@
+[
+    {
+        "label": "check_inbox"
+    },
+    {
+        "label": "read_next_email"
+    },
+    {
+        "label": "summarize_list"
+    },
+    {
+        "label": "summarize_email"
+    },
+    {
+        "label": "confusion"
+    },
+    {
+        "label": "surprise"
+    }
+]

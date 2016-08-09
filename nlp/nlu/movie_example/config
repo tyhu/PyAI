@@ -16,6 +16,10 @@
             {
                 "type": "director",
                 "optional": true
+            },
+            {
+                "type": "genre",
+                "optional": true
             }
         ]
     },
@@ -26,6 +30,6 @@
         "label": "confirm_no"
     },
     {
-        "label": "say_goodbye"
+        "label": "decide"
     }
 ]

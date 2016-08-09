@@ -1,0 +1,30 @@
+[
+    {
+        "utt": "check inbox",
+        "intent": "check_inbox"
+    },
+    {
+        "utt": "check in box",
+        "intent": "check_inbox"
+    },
+    {
+        "utt": "any new email",
+        "intent": "check_inbox"
+    },
+    {
+        "utt": "summarize the next email",
+        "intent": "summarize_email"
+    },
+    {
+        "utt": "wait what is that",
+        "intent": "confusion"
+    },
+    {
+        "utt": "You serious",
+        "intent": "surprise"
+    },
+    {
+        "utt": "read the next email",
+        "intent": "read_next_email"
+    }
+]

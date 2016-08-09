@@ -7,14 +7,16 @@ import cgi
 from nlu import *
 from nlu_preprocessing import *
 
+
+
 nlu = NLU()
-nlu.readConfig('movie_example/config')
-nlu.initializeNER(['movie_example/actor.txt','movie_example/director.txt','movie_example/movie.txt','movie_example/genre.txt'])
-nlu.train('movie_example/corpus.txt')
+nlu.readConfig('email_example/config')
+nlu.initializeNER([])
+nlu.train('email_example/corpus.txt')
 
 #HOST_NAME = 'localhost'
 HOST_NAME = ''
-PORT_NUMBER = 9001
+PORT_NUMBER = 9002
 class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     def do_POST(s):
         form = cgi.FieldStorage(

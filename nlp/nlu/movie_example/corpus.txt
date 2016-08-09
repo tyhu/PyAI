@@ -36,7 +36,23 @@
         }
     },
     {
-        "utt": "good bye",
-        "intent": "say_goodbye"
+        "utt": "I like sci-fi movie",
+        "intent": "inform_preference",
+        "entity":{
+            "type": "genre",
+            "value": "sci-fi"
+        }
+    },
+    {
+        "utt": "I have seen Star Wars and really like it",
+        "intent": "inform_preference",
+        "entity":{
+            "type": "movie",
+            "value": "Star Wars"
+        }
+    },
+    {
+        "utt": "I will watch this one thank you",
+        "intent": "decide"
     }
 ]
