@@ -51,6 +51,19 @@ def lib2nparray(infn,labtype):
 
     return X, y
 
+def ListKFold(X,y,k=5):
+    alllst = range(len(X))
+    foldsize = int(len(X)/k)
+    for idx in range(k):
+        Xtrain, Xtest = [],[]
+        testlst = range(idx*foldsize,idx*foldsize+foldsize)
+        trainlst = [i for i in alllst if i not in testlst]
+        for i in testlst: Xtest.append(X[i])
+        for i in trainlst: Xtrain.append(X[i])
+        ytrain = np.delete(y,testlst,0)
+        ytest = y[testlst]
+        yield Xtrain, ytrain, Xtest, ytest
+
 def KFold(X,y,k=5):
     foldsize = int(X.shape[0]/k)
     for idx in range(k):
@@ -141,6 +154,16 @@ def RandomPerm(Xtrain,ytrain):
     Xtrain_s = Xtrain[per]
     ytrain_s = ytrain[per]
     return Xtrain_s, ytrain_s
+
+# for list
+def ListRandomPerm(Xtrain,ytrain):
+    per = np.random.permutation(len(Xtrain))
+    Xtrain_s, ytrain_s = [], []
+    for i in per.tolist():
+        Xtrain_s.append(Xtrain[i])
+        ytrain_s.append(ytrain[i])
+    return Xtrain_s, np.array(ytrain_s)
+    
 
 def random_perm2file(infn,outfn):
     lst = []

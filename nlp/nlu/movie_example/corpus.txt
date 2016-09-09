@@ -44,6 +44,14 @@
         }
     },
     {
+        "utt": "I think sliding doors was good but body snatchers is OK",
+        "intent": "inform_preference",
+        "entity":{
+            "type": "movie",
+            "value": "sliding doors"
+        }
+    },
+    {
         "utt": "I have seen Star Wars and really like it",
         "intent": "inform_preference",
         "entity":{

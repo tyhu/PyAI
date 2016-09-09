@@ -24,7 +24,8 @@ class MyHandler(BaseHTTPServer.BaseHTTPRequestHandler):
         )
         utt = form['utt'].value
         print 'input utterance: ',utt
-        responseText = nlu.jsonStr(*nlu.understand(utt))
+        #responseText = nlu.jsonStr(*nlu.understand(utt))  ### without sentimtnet analysis
+        responseText = nlu.jsonStr(*nlu.understand_sa(utt))  ### with sentimtnet analysis
         print 'nlu result: ',responseText
         s.send_response(200)
         s.send_header('Content-type', 'text')

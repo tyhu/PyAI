@@ -20,7 +20,11 @@
         "intent": "confusion"
     },
     {
-        "utt": "You serious",
+        "utt": "seriously",
+        "intent": "surprise"
+    },
+    {
+        "utt": "serious",
         "intent": "surprise"
     },
     {

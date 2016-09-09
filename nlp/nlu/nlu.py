@@ -88,9 +88,35 @@ class NLU(object):
         obj['label'] = intent
         obj['entities'] = slots
         return json.dumps(obj)
-        
-        
-        
+
+    ### understanding with
+    def understand_sa(self,s):
+        test_intent, test_slots = self.understand(s)
+
+        ### manually selected feature
+        sentiment_featlst = ['like','OK','good','not']
+        feat_sents = [1,0,1,-1]
+        tokens = tokenization(s)
+        poses = []
+        sents = []
+        for feat,sent in zip(sentiment_featlst,feat_sents):
+            if feat in tokens: 
+                poses.append(tokens.index(feat))
+                sents.append(sent)
+
+        for idx in range(len(test_slots)):
+            ent_pos = test_slots[idx][2]
+            mind = 10000;
+            polarity = 1
+            for pos, sent in zip(poses,sents):
+                if mind>abs(pos-ent_pos) and pos>ent_pos:
+                    mind = abs(pos-ent_pos)
+                    polarity = sent
+            lst = list(test_slots[idx])
+            lst.append(polarity)
+            test_slots[idx] = tuple(lst)
+        #print test_slots
+        return  test_intent, test_slots
 
 if __name__=='__main__':
     sp = '------------------------------------------'
@@ -115,3 +141,7 @@ if __name__=='__main__':
 
     print 'json string:'
     print nlu.jsonStr(*nlu.understand(s))
+
+    print sp
+    print 'test sentiment'
+    nlu.understand_sa(s)
