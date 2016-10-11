@@ -177,3 +177,16 @@ def random_perm2file(infn,outfn):
 ### map the label name array (ytrain, ytest)
 def label_to_index(class_lst,y):
     return np.array([class_lst.index(t) for t in y.tolist()])
+
+def validate_models_accuracy(X,y,models):
+    from sklearn.metrics import accuracy_score
+    accuracylist = []
+    for model in models:
+        modelaccs = []
+        for Xtrain, ytrain, Xtest, ytest in KFold(X,y):
+            model.fit(Xtrain,ytrain)
+            ypred = model.predict(Xtest)
+            acc = accuracy_score(ytest,ypred)
+            modelaccs.append(acc)
+        accuracylist.append(np.mean(modelaccs))
+    return np.argmax(accuracylist)
