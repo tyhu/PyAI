@@ -2,6 +2,8 @@ import sys
 import numpy as np
 from scipy.linalg import sqrtm, inv
 from numpy.matlib import repmat
+from sklearn.feature_selection import SelectKBest
+from sklearn.feature_selection import chi2, f_classif
 
 '''
 ref 
@@ -30,5 +32,15 @@ def denoiseAutoEncoder(X, p):
     W = EP[:-1,:].dot(inv(EQ+1e-5*np.eye(featnum+1)))
     return W
 
-
-
+"""
+k -- number of features to be discard
+"""
+def transferFS(Xs, Xt, p, k):
+    sdatanum, featnum = Xs.shape
+    tdatanum, featnum = Xt.shape
+    y = [0]*sdatanum+[1]*tdatanum
+    X = np.concatenate((Xs,Xt),axis=0)
+    fs = SelectKBest(f_classif, k=k)
+    fs.fit(X,y)
+    fidxs = fs.get_support()
+    return np.logical_not(fidxs)
