@@ -85,7 +85,7 @@ def buildAE(x,xtar,We,be,Wd,bd,activation='sigmoid',ld2=0.001, tied=True):
     if tied: params = [We,be,bd]
     else: params = [We,be,Wd,bd]
 
-    cost = MSE(xtar,xout)+l2norm(params)*ld2
+    cost = MSE(xtar,xout)+l2norm([We])*ld2
     return h, cost, params
 
 '''
@@ -232,3 +232,50 @@ def buildJFAE(x,xtar,y,W,b,bo,Wd,bd,activation='sigmoid',ld2=0.001):
     #cost = MSE(xtar,xout)+l2norm(params)*ld2
 
     return h, cost, params
+
+class DualAE(object):
+    def __init__(self, shape, activation='sigmoid',lr=0.0001,momentum=0.9,ld2=0.001,tied=True):
+        featsize, hsize = shape
+        x = T.matrix()
+        xtar = T.matrix()
+        rng = np.random.RandomState(1245)
+        Wst = init_weights_rng((featsize,hsize),rng)
+        bst = init_weights_rng((hsize,),rng)
+        Wts = init_weights_rng((hsize,featsize),rng)
+        bts = init_weights_rng((featsize,),rng)
+        h_st, cost_st, params_st = buildDualAE(x,xtar,Wst,bst,Wts,bts,activation,ld2=ld2)
+        h_ts, cost_ts, params_ts = buildDualAE(x,xtar,Wts,bts,Wst,bst,activation,ld2=ld2)
+
+        updates_st = updatefunc(cost_st, params_st, lr=lr, momentum=momentum)
+        updates_ts = updatefunc(cost_st, params_st, lr=lr, momentum=momentum)
+        self.train_st = theano.function([x,xtar], cost_st, updates=updates_st)
+        self.train_ts = theano.function([x,xtar], cost_ts, updates=updates_ts)
+        self.transform_ = theano.function([x], h_st)
+
+    def fit(self,Xs,Xt,batchsize=50):
+        Xs,Xt = floatX(Xs),floatX(Xt)
+        dnum = X.shape[0]
+        for i in range(1000):
+            print "iteration %d" % (i + 1)
+            totalcost = 0
+            for start in range(0, dnum, batchsize):
+                x_batch = X[start:start + batchsize]
+                cost = self.train(x_batch,x_batch)
+                totalcost+=cost
+            print "cost: ",totalcost
+
+
+def buildDualAE(x,xtar,Wi,Wo,bi,bo,activation='sigmoid',ld2=0.001):
+    if activation is 'sigmoid': activ_func = T.nnet.sigmoid
+    elif activation is 'relu': activ_func = ReLU
+    elif activation is 'tanh': activ_func = T.tanh
+    else: raise NotImplementedError()
+    
+    h = activ_func(T.dot(x,Wi)+bi)
+    xout = activ_func(T.dot(h,Wo.T)+bo)
+
+    params = [Wi,bi,Wo,bo]
+    cost = MSE(xtar,xout)+l2norm([Wi,Wo])*ld2
+
+    return h,cost,params
+
