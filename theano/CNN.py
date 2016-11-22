@@ -4,6 +4,7 @@ import theano.tensor as T
 from util_theano import *
 from compact_cnn import *
 from sklearn.metrics import accuracy_score
+import cPickle as pickle
 
 class CNNClassifier(object):
     def __init__(self, lr=0.01, momentum=0.9, ld2=0.1):
@@ -16,10 +17,21 @@ class CNNClassifier(object):
         self.train = theano.function([x, t], c, updates=updates)
         self.predict_ = theano.function([x], y)
         self.prob_ = theano.function([x],p_y_given_x)
+        self.tparams = params
+    
+    def assignParams(self,params):
+        for i,tparam in enumerate(self.tparams):
+            tparam.set_value(floatX(params[i]))
+
+    def saveParams(self,fn):
+        params = []
+        for tparam in self.tparams:
+            params.append(tparam.get_value())
+        pickle.dump(params,open(fn,'wb'))
 
     def fit(self, X, y, batchsize=32):
         X = floatX(X)
-        for i in range(50):
+        for i in range(30):
             totalcost = 0
             print "iteration %d" % (i + 1)
             for start in range(0, len(X), batchsize):
