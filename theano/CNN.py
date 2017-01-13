@@ -31,15 +31,15 @@ class CNNClassifier(object):
 
     def fit(self, X, y, batchsize=32):
         X = floatX(X)
-        for i in range(30):
+        for i in range(100):
             totalcost = 0
-            print "iteration %d" % (i + 1)
+            #print "iteration %d" % (i + 1)
             for start in range(0, len(X), batchsize):
                 x_batch = X[start:start + batchsize]
                 y_batch = y[start:start + batchsize]
                 cost = self.train(x_batch, y_batch)
                 totalcost+=cost
-            print 'cost: ',totalcost
+            #print 'cost: ',totalcost
 
     def predict(self,X):
         datanum = X.shape[0]
