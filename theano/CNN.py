@@ -52,6 +52,14 @@ class CNNClassifier(object):
     def prob(self,X):
         return self.prob_(X)
 
+    def entropy(self,X):
+        p = self.prob_(X)
+        datanum,cat_num = p.shape
+        h = np.zeros(datanum)
+        for i in range(cat_num):
+            h-=p[:,i]*np.log(p[:,i])
+        return h
+
     def buildmodel(self,x,t):
         rng = np.random.RandomState(12345)
         w_c1 = init_weights_rng((30, 3, 5, 5),rng)

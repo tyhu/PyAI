@@ -51,6 +51,14 @@ def addFullLayer(x,W,b):
     out = T.maximum(0, T.dot(x, W) + b)
     return out
 
+def addSigmoidConvLayer(x,W,b,border_mode='valid'):
+    c = T.nnet.sigmoid(conv2d(x, W, border_mode=border_mode) + b.dimshuffle('x', 0, 'x', 'x'))
+    return c
+
+def addSigmoidFullLayer(x,W,b):
+    out = T.nnet.sigmoid(T.dot(x, W) + b)
+    return out
+
 def addSoftmaxLayer(x,W,b):
     p_y_given_x = T.nnet.softmax(T.dot(x, W) + b)
     return p_y_given_x
