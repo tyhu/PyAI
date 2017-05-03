@@ -7,6 +7,16 @@ def reg_alphabetic(s):
     s = regex.sub('', s)
     return s
 
+def getStopWdSet():
+    from nltk.corpus import stopwords
+    stopwd = set(stopwords.words('english'))
+    return stopwd
+
+def getLemmatizer():
+    from nltk.stem import WordNetLemmatizer
+    lemmatizer = WordNetLemmatizer()
+    return lemmatizer
+
 def tokenization(s):
     return nltk.word_tokenize(s)
 
@@ -32,3 +42,6 @@ def ngram_stats(ngrams):
             ngram_occurrences = ngrams_statistics[ngram]
             ngrams_statistics.update({ngram:ngram_occurrences+1})
     return ngrams_statistics
+
+def isASCII(s):
+    return all(ord(char) < 128 for char in s)
