@@ -64,7 +64,24 @@ class MFAE(object):
     def transform(self,X):
         X = floatX(X)
         return self.transform_(X)
-        
+
+    def infer_mask(self, Xlst, ld):
+        num = Xlst[0].shape[0]
+        dim = Xlst[0].shape[1]
+        error_vec = np.zeros((dim,))
+        for X in Xlst:
+            if X.shape[0]!=num: continue
+            x1 = X[:num/2]
+            x2 = X[num/2:]
+            ev = np.sum(((x1-x2)**2),axis=0)/num
+            error_vec += ev
+        error_vec/=len(Xlst)
+        idxs = sorted(range(dim), key=lambda i:error_vec[i], reverse=True)
+        mask = np.zeros([dim,1])
+        for i in idxs:
+            if error_vec[i]<ld: mask[i] = 1
+        return mask.T
+            
 
 def buildMFAE(x, mask):
     filternum = 40
@@ -97,10 +114,24 @@ def buildMFAE(x, mask):
     o2 = o_masked[batchsize/2:,:]
     cost_g = l2norm([o1-o2])
     
-    ld2 = 0.001
-    ld3 = 0.001
+    #ld2 = 0.001
+    #ld3 = 0.001
+    ld2 = 0.00
+    ld3 = 0.01
     datanum = x.shape[0]
     cost = MSE(x,dc1)/datanum+ld2*l2norm([w_c1,w_h,w_dc1])+ld3*cost_g
     params = [w_c1,b_c1,b_dc1,w_h,b_h,b_dh]
     return o, cost, params
 
+"""
+multiple instance AE
+f(x_1,x_2,..,x_n) = (h,m_1,m_2,..,m_n)
+g(h,m_1,m_2,..,m_n) = x_1,x_2,..,x_n
+---
+m_i = f_m(x_i,h)
+h = f_h(x_1,x_2,..,x_n)
+\hat{x}_i = g(h,m_i)
+"""
+#class MIAE(object):
+    
+#    def __init__(self):
