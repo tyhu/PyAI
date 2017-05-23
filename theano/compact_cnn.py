@@ -76,3 +76,6 @@ def updatefunc(cost, params, lr, momentum):
         updates.append((mparam_i, v))
         updates.append((p, p + v))
     return updates
+
+def kernelNorm(x,K):
+    return T.dot(x.T,T.dot(K,x))

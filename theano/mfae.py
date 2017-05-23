@@ -132,6 +132,66 @@ m_i = f_m(x_i,h)
 h = f_h(x_1,x_2,..,x_n)
 \hat{x}_i = g(h,m_i)
 """
-#class MIAE(object):
+class MIAE(MFAE):
     
-#    def __init__(self):
+    def __init__(self, vsize, hsize, glst, lr=0.001,momentum=0.9):
+        x = T.tensor3()
+        o,cost,params = buildMIAE(x, vsize, hsize,glst)
+        updates = updatefunc(cost, params, lr=lr, momentum=momentum)
+        self.train = theano.function([x], cost, updates=updates)
+        self.cost = theano.function([x],cost)
+        self.transform_ = theano.function([x], o)
+        self.tparams = params
+
+    def fit_batch(self, X):
+        X = floatX(X)
+        cost = self.train(X)
+        return cost
+
+"""
+x: tensor -- batch size X instance num X feature size
+Klst: kernel list -- define groups
+"""
+def buildMIAE(x, fnum, hnum, glst):
+    batchsize, inum, _ = x.shape
+
+    ### parameters
+    rng = np.random.RandomState(12345)
+    w_h = init_weights_rng((fnum, hnum), rng)
+    b_h = init_weights_rng((hnum,), rng)
+    w_m = init_weights_rng((fnum+hnum, hnum), rng)
+    b_m = init_weights_rng((hnum,), rng)
+    w_x = init_weights_rng((hnum, fnum), rng)
+    b_x = init_weights_rng((fnum,), rng)
+
+    ### encode
+    h1 = addSigmoidFullLayer(x, w_h, b_h)
+
+    h = T.max(h1, axis=1).dimshuffle(0,'x',1).repeat(inum,axis=1) ### max pooling than repeat
+    ### combine x and h
+    xh = T.concatenate([x,h],axis=2)
+    m = addSigmoidFullLayer(xh, w_m, b_m)
+
+    ### decode
+    #x_hat = addSigmoidFullLayer(h*m, w_x, b_x)
+    x_hat = addFullLayer(h*m, w_x, b_x)
+
+    ### loss function
+    ld = 0.01
+    cost = MSE(x,x_hat)+ld*build_group_lasso(m,hnum,glst)
+    params = [w_h,b_h,w_m,b_m,w_x,b_x]
+    params = [w_h,b_h]
+    return h, cost, params
+
+def build_group_lasso(x, fnum, glst):
+    assert fnum==np.sum(glst)
+    s = 0
+    cost = None
+    for g in glst:
+        mnp = np.zeros((fnum,))
+        mnp[s:s+g] = 1
+        m = theano.shared(mnp)
+        if cost is None: cost = T.sqrt(T.sum(x*m*x))
+        cost+=T.sqrt(T.sum(x*m*x))
+        s+=g
+    return cost
