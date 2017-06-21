@@ -136,11 +136,12 @@ class MIAE(MFAE):
     
     def __init__(self, vsize, hsize, glst, lr=0.001,momentum=0.9):
         x = T.tensor3()
-        o,cost,params = buildMIAE(x, vsize, hsize,glst)
+        o,m,cost,params = buildMIAE(x, vsize, hsize,glst)
         updates = updatefunc(cost, params, lr=lr, momentum=momentum)
         self.train = theano.function([x], cost, updates=updates)
-        self.cost = theano.function([x],cost)
+        #self.cost_group = theano.function([x], cost_group)
         self.transform_ = theano.function([x], o)
+        self.getmasks_ = theano.function([x], m)
         self.tparams = params
 
     def fit_batch(self, X):
@@ -148,6 +149,9 @@ class MIAE(MFAE):
         cost = self.train(X)
         return cost
 
+    def get_masks(self,X):
+        X = floatX(X)
+        return self.getmasks_(X)
 """
 x: tensor -- batch size X instance num X feature size
 Klst: kernel list -- define groups
@@ -177,11 +181,13 @@ def buildMIAE(x, fnum, hnum, glst):
     x_hat = addFullLayer(h*m, w_x, b_x)
 
     ### loss function
-    ld = 0.01
+    ld = 0.000
     cost = MSE(x,x_hat)+ld*build_group_lasso(m,hnum,glst)
+    #cost = MSE(x,x_hat)
+    #cost_group = build_group_lasso(m,hnum,glst)
     params = [w_h,b_h,w_m,b_m,w_x,b_x]
-    params = [w_h,b_h]
-    return h, cost, params
+    #params = [w_h,b_h]
+    return h, m, cost, params
 
 def build_group_lasso(x, fnum, glst):
     assert fnum==np.sum(glst)
@@ -195,3 +201,39 @@ def build_group_lasso(x, fnum, glst):
         cost+=T.sqrt(T.sum(x*m*x))
         s+=g
     return cost
+
+class AAE(MFAE):
+    
+    def __init__(self, vsize, hsize, lr=0.001,momentum=0.9):
+        x = T.tensor3()
+        o,cost,params = buildAvgAE(x, vsize, hsize)
+        updates = updatefunc(cost, params, lr=lr, momentum=momentum)
+        self.train = theano.function([x], cost, updates=updates)
+        #self.cost_group = theano.function([x], cost_group)
+        self.transform_ = theano.function([x], o)
+        self.tparams = params
+
+    def fit_batch(self, X):
+        X = floatX(X)
+        cost = self.train(X)
+        return cost
+
+def buildAvgAE(x, fnum, hnum):
+    batchsize, inum, _ = x.shape
+
+    ### parameters
+    rng = np.random.RandomState(12345)
+    w_h = init_weights_rng((fnum, hnum), rng)
+    b_h = init_weights_rng((hnum,), rng)
+    w_x = init_weights_rng((hnum, fnum), rng)
+    b_x = init_weights_rng((fnum,), rng)
+
+    ### encode
+    h1 = addSigmoidFullLayer(x, w_h, b_h)
+
+    h = T.max(h1, axis=1).dimshuffle(0,'x',1).repeat(inum,axis=1) ### max pooling than repeat
+    x_hat = addFullLayer(h, w_x, b_x)
+    cost = MSE(x,x_hat)
+    params = [w_h,b_h,w_x,b_x]
+    #params = [w_h,b_h]
+    return h, cost, params
