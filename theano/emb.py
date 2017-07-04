@@ -6,41 +6,74 @@ from util_theano import *
 from compact_cnn import *
 import cPickle as pickle
 
+
+class TripletEmbNet(object):
+    def __init__(self, struct, lr=0.001,momentum=0.9):
+        x1,x2,x3 = T.matrix(), T.matrix(), T.matrix()
+        ltest, cost, params, updates = buildTripletEmb(x1,x2,x3,struct)
+        updates = updatefunc(cost, params, lr=lr, momentum=momentum) + updates
+        self.train = theano.function([x1,x2,x3], cost, updates=updates)
+        self.tparams = params
+        self.transform_ = theano.function([x1], ltest)
+        self.costfunc_ = theano.function([x1,x2,x3],cost)
+        
+    def costfunc(self,X1,X2,X3):
+        X1,X2,X3 = floatX(X1), floatX(X2), floatX(X3)
+        return self.costfunc_(X1,X2,X3)
+
+    def fit_batch(self,X1,X2,X3):
+        X1,X2,X3 = floatX(X1), floatX(X2), floatX(X3)
+        cost = self.train(X1,X2,X3)
+        return cost
+
+    def assignParams(self,params):
+        for i,tparam in enumerate(self.tparams):
+            tparam.set_value(floatX(params[i]))
+
+    def saveParams(self,fn):
+        params = []
+        for tparam in self.tparams:
+            params.append(tparam.get_value())
+        pickle.dump(params,open(fn,'wb'))
+
+    def transform(self):
+        X = floatX(X)
+        return self.transform_(X)
+
 """
-deep multiview embedding
-x1,x2: feature in view x, y1,y2: feature in view y
-bidirectional ranking constraint
-  d(x1,y1) + m < d(x1,y2)
-  d(x1,y1) + m < d(x2,y1)
+x's: input theano tensor
+    x1: anchor examples
+    x2: positive examples
+    x3: negative examples
+struct: network structure as a list e.x. [3000,2048,512]
 """
-def buildDeepMEmb(x1,x2,y1,y2,m):
-    
-    ### build net work
-    h1x1 = addFullLayer(x1, W_h1x, b_h1x)
-    h1x2 = addFullLayer(x2, W_h1x, h_h1x)
-    
-    h2x1 = addFullLinearLayer(h1x1, W_h2x, b_h2x)
-    h2x2 = addFullLinearLayer(h1x2, W_h2x, b_h2x)
+def buildTripletEmb(x1,x2,x3,struct,alpha=0.1):
+    fsize, hsize, osize = struct
+    rng = np.random.RandomState(12345)
+    W1 = init_weights_rng((fsize, hsize), rng)
+    b1 = init_weights_rng((hsize,), rng)
+    W2 = init_weights_rng((hsize,osize), rng)
+    b2 = init_weights_rng((osize,), rng)
+    gamma = init_weights_rng((osize,), rng)
+    beta = init_weights_rng((osize,), rng)
+    params = [W1,b1,W2,b2,gamma,beta]
 
-    bnx1, mean_x, var_x = addFullBNLayerTrain(h2x1, gamma_x, beta_x)
-    bnx2, mean_x, var_x = addFullBNLayerTrain(h2x2, gamma_x, beta_x, mean=mean_x, var=var_x)
+    h11,h12,h13 = addFullLayer(x1, W1, b1), addFullLayer(x2, W1, b1), addFullLayer(x3, W1, b1)
+    h21,h22,h23 = addFullLinearLayer(h11, W2, b2), addFullLinearLayer(h12, W2, b2), addFullLinearLayer(h13, W2, b2)
+    bn1, mean, var, bn_updates = addFullBNLayerTrain(h21,gamma,beta)
+    bn2, mean, var, _ = addFullBNLayerTrain(h22,gamma,beta,mean=mean,var=var)
+    bn3, mean, var, _ = addFullBNLayerTrain(h23,gamma,beta,mean=mean,var=var)
 
-    l2x1 = l2normalize(bnx1)
-    l2x2 = l2normalize(bnx2)
+    l1,l2,l3 = l2normalize(bn1), l2normalize(bn2), l2normalize(bn3)
 
-    h1y1 = addFullLayer(y1, W_h1y, b_h1y)
-    h1y2 = addFullLayer(y2, W_h1y, h_h1y)
-    
-    h2y1 = addFullLinearLayer(h1y1, W_h2y, b_h2y)
-    h2y2 = addFullLinearLayer(h1y2, W_h2y, b_h2y)
+    ### test phase
+    bntest = addFullBNLayerTest(h21, gamma, beta, mean, var)
+    ltest = l2normalize(bntest)
 
-    bny1, mean_y, var_y = addFullBNLayerTrain(h2y1, gamma_y, beta_y)
-    bny2, mean_y, var_y = addFullBNLayerTrain(h2y2, gamma_y, beta_y, mean=mean_y, var=var_y)
+    ### triplet cost
+    d12 = T.sqrt(1-l1.dot(l2.T))
+    d13 = T.sqrt(1-l1.dot(l3.T))
+    cost = T.mean(T.maximum(d12-d13+alpha,0))
 
-    l2y1 = l2normalize(bny1)
-    l2y2 = l2normalize(bny2)
+    return ltest, cost, params, bn_updates
 
-    ### cost
-    dx1y1 = T.sum((l2x1-l2y1)**2)
-
-    return o1,o2,cost,param

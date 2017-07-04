@@ -60,7 +60,7 @@ def addFullBNLayerTrain(x,gamma,beta, mean=None, var=None):
     momentum = 0.9
     if mean is None:
         mean = theano.shared(np.zeros((fsize,)))
-        var = theano.shared(np.ones((fisze,)))
+        var = theano.shared(np.ones((fsize,)))
     input_mean = T.mean(x, axis=0)
     input_var = T.var(x, axis=0)
     inv_std = T.inv(T.sqrt(input_var + ep))
@@ -69,7 +69,7 @@ def addFullBNLayerTrain(x,gamma,beta, mean=None, var=None):
     updates.append((mean, momentum*mean+(1-momentum)*input_mean))
     updates.append((var,momentum*var+(1-momentum)*(x.shape[0]/(x.shape[0]-1)*input_var)))
 
-    o = (x-input_mean) * gamma * invstd + beta
+    o = (x-input_mean) * gamma * inv_std + beta
     return o, mean, var, updates
 
 def addFullBNLayerTest(x, gamma, beta, mean, var):
