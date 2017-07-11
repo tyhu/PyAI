@@ -156,14 +156,14 @@ class MIAE(MFAE):
 x: tensor -- batch size X instance num X feature size
 Klst: kernel list -- define groups
 """
-def buildMIAE(x, fnum, hnum, glst):
+def buildMIAE(x, fnum, hnum, cnum):
     batchsize, inum, _ = x.shape
 
     ### parameters
     rng = np.random.RandomState(12345)
     w_h = init_weights_rng((fnum, hnum), rng)
     b_h = init_weights_rng((hnum,), rng)
-    w_m = init_weights_rng((fnum+hnum, hnum), rng)
+    w_m = init_weights_rng((fnum+hnum, cnum), rng)
     b_m = init_weights_rng((hnum,), rng)
     w_x = init_weights_rng((hnum, fnum), rng)
     b_x = init_weights_rng((fnum,), rng)

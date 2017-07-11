@@ -89,6 +89,13 @@ def addSoftmaxLayer(x,W,b):
     p_y_given_x = T.nnet.softmax(T.dot(x, W) + b)
     return p_y_given_x
 
+def addTensorSoftmaxLayer(x,W,b):
+    ndim = x.ndim
+    x = T.dot(x, W) + b
+    e_x = T.exp(x - x.max(axis=ndim-1, keepdims=True))
+    out = e_x / e_x.sum(axis=ndim-1, keepdims=True)
+    return out
+
 ### negative log likelihood
 def negll(p_y_given_x, t):
     return T.mean(T.nnet.categorical_crossentropy(p_y_given_x, t))
@@ -103,8 +110,32 @@ def updatefunc(cost, params, lr, momentum):
         updates.append((p, p + v))
     return updates
 
+### bernoulli log likelihood
+def bnl_ll(x,p):
+    return T.mean(x*T.log(p)+(1-x)*T.log(1-p))
+
 def kernelNorm(x,K):
     return T.dot(x.T,T.dot(K,x))
 
 def l2normalize(x):
     return  x/T.sqrt((x**2).sum(axis=1)).reshape((x.shape[0], 1))
+
+def get_rng():
+    seed = 1234
+    if "gpu" in theano.config.device: 
+        srng = theano.sandbox.cuda.rng_curand.CURAND_RandomStreams(seed=seed)
+    else:
+        srng = T.shared_randomstreams.RandomStreams(seed=seed)
+    return srng
+    
+def sampler_normal(struct, mu, log_sigma):
+    srng = get_rng()
+    eps = srng.normal(struct)
+    z = mu + T.exp(0.5 * log_sigma) * eps
+    return z
+
+def sampler_cat(pvals):
+    srng = get_rng()
+    z = srng.multinomial(pvals=pvals)
+    return z
+

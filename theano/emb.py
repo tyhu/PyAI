@@ -8,9 +8,9 @@ import cPickle as pickle
 
 
 class TripletEmbNet(object):
-    def __init__(self, struct, lr=0.001,momentum=0.9):
+    def __init__(self, struct, alpha=0.1, lr=0.001,momentum=0.9):
         x1,x2,x3 = T.matrix(), T.matrix(), T.matrix()
-        ltest, cost, params, updates = buildTripletEmb(x1,x2,x3,struct)
+        ltest, cost, params, updates = buildTripletEmb(x1,x2,x3,struct,alpha=alpha)
         updates = updatefunc(cost, params, lr=lr, momentum=momentum) + updates
         self.train = theano.function([x1,x2,x3], cost, updates=updates)
         self.tparams = params
@@ -36,7 +36,7 @@ class TripletEmbNet(object):
             params.append(tparam.get_value())
         pickle.dump(params,open(fn,'wb'))
 
-    def transform(self):
+    def transform(self,X):
         X = floatX(X)
         return self.transform_(X)
 
@@ -54,8 +54,8 @@ def buildTripletEmb(x1,x2,x3,struct,alpha=0.1):
     b1 = init_weights_rng((hsize,), rng)
     W2 = init_weights_rng((hsize,osize), rng)
     b2 = init_weights_rng((osize,), rng)
-    gamma = init_weights_rng((osize,), rng)
-    beta = init_weights_rng((osize,), rng)
+    gamma = init_weights((osize,), rng)
+    beta = init_weights((osize,), rng)
     params = [W1,b1,W2,b2,gamma,beta]
 
     h11,h12,h13 = addFullLayer(x1, W1, b1), addFullLayer(x2, W1, b1), addFullLayer(x3, W1, b1)
@@ -71,8 +71,10 @@ def buildTripletEmb(x1,x2,x3,struct,alpha=0.1):
     ltest = l2normalize(bntest)
 
     ### triplet cost
-    d12 = T.sqrt(1-l1.dot(l2.T))
-    d13 = T.sqrt(1-l1.dot(l3.T))
+    #d12 = T.sqrt(1-l1.dot(l2.T))
+    #d13 = T.sqrt(1-l1.dot(l3.T))
+    d12 = T.sqrt(T.sum((l1-l2)**2,axis=1))
+    d13 = T.sqrt(T.sum((l1-l3)**2,axis=1))
     cost = T.mean(T.maximum(d12-d13+alpha,0))
 
     return ltest, cost, params, bn_updates
