@@ -20,11 +20,23 @@ class hVAE(object):
         h, c, ll_test, cost, params = buildHVAE(x, x_test, struct_h, struct_c)
         updates = updatefunc(cost, params.values(), lr=lr, momentum=momentum)
         self.train = theano.function([x], cost, updates=updates)
-        self.encode = theano.function([x], h)
-        self.encode_c = theano.function([x], c)
-        self.estimate = theano.function([x,x_test], ll_test)
+        self.encode_ = theano.function([x], h)
+        self.encode_c_ = theano.function([x], c)
+        self.estimate_ = theano.function([x,x_test], ll_test)
 
         self.tparams = params
+
+    def encode(self, X):
+        X = floatX(X)
+        return self.encode_(X)
+
+    def encode_c(self, X):
+        X = floatX(X)
+        return self.encode_c_(X)
+
+    def estimate(self,X,X_test):
+        X, X_test = floatX(X), floatX(X_test)
+        return self.estimate_(X,X_test)
 
     def fit_batch(self,X):
         X = floatX(X)
@@ -90,7 +102,7 @@ def buildHVAE(x, x_test, struct_h, struct_c):
     cost = KLD_norm(h_mu, h_sig)
     cost = KLD_bernoulli(c_dis)
     cost = T.mean(cost)
-    cost += bnl_ll(x, x_dis)
+    cost -= bnl_ll(x, x_dis)
 
     ### p(x_test|x) estimator
     ### P(x|X) ~= \sum_c(p(x,c|h)), where h = q(h|X)
@@ -101,7 +113,7 @@ def buildHVAE(x, x_test, struct_h, struct_c):
     x_test = x_test.dimshuffle(0,'x',1).repeat(csize, axis=1)
     ll_test = T.mean(T.mean(x_test*T.log(x_dis_test)+(1-x_test)*T.log(1-x_dis_test),axis=2),axis=1)
 
-    return h1p, c_dis, ll_test, cost, params
+    return h_mu, c_dis, ll_test, cost, params
 
 
 ### KLD between two gaussian
