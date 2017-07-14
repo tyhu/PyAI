@@ -110,9 +110,6 @@ def updatefunc(cost, params, lr, momentum):
         updates.append((p, p + v))
     return updates
 
-### bernoulli log likelihood
-def bnl_ll(x,p):
-    return T.mean(x*T.log(p)+(1-x)*T.log(1-p))
 
 def kernelNorm(x,K):
     return T.dot(x.T,T.dot(K,x))

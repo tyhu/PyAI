@@ -23,8 +23,13 @@ class hVAE(object):
         self.encode_ = theano.function([x], h)
         self.encode_c_ = theano.function([x], c)
         self.estimate_ = theano.function([x,x_test], ll_test)
+        self.cost_ = theano.function([x], cost)
 
         self.tparams = params
+
+    def cost(self,X):
+        X = floatX(X)
+        return self.cost_(X)
 
     def encode(self, X):
         X = floatX(X)
@@ -99,10 +104,10 @@ def buildHVAE(x, x_test, struct_h, struct_c):
     #x_dis = addSigmoidFullLayer(hc, params['Wx'], params['bx'])
 
     ### cost
-    cost = KLD_norm(h_mu, h_sig)
-    cost = KLD_bernoulli(c_dis)
-    cost = T.mean(cost)
-    cost -= bnl_ll(x, x_dis)
+    #cost = T.mean(KLD_norm(h_mu, h_sig)) + T.mean(KLD_bernoulli(c_dis))
+    #cost = KLD_bernoulli(c_dis)
+    #cost += KLD_bernoulli(c_dis)
+    cost = -T.mean(bnl_ll(x, x_dis))+T.mean(KLD_bernoulli(c_dis))+0.1*T.mean(KLD_norm(h_mu, h_sig))
 
     ### p(x_test|x) estimator
     ### P(x|X) ~= \sum_c(p(x,c|h)), where h = q(h|X)
@@ -123,10 +128,13 @@ def buildHVAE(x, x_test, struct_h, struct_c):
 
 ### KLD with normal distribution
 def KLD_norm(mu, logsig):
-    return 0.5 * T.sum(1 + logsig - mu**2 - T.exp(logsig), axis=1)
+    return -0.5 * T.sum(1 + logsig - mu**2 - T.exp(logsig), axis=1)
     
 ### KLD with 0.5,0.5 
 def KLD_bernoulli(c_dis):
     _,k = c_dis.shape
     return T.sum(c_dis*T.log(c_dis*k),axis=1)
     
+### bernoulli log likelihood
+def bnl_ll(x,p):
+    return T.sum(T.sum(x*T.log(p)+(1-x)*T.log(1-p),axis=2),axis=1)
