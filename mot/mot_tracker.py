@@ -2,9 +2,11 @@
 Multiple Object Tracking Framework
 """
 import sys
+import copy
 import numpy as np
+from random import shuffle
 from sklearn.utils.linear_assignment_ import linear_assignment
-
+from motion_models import *
 import cv2
 hog = cv2.HOGDescriptor()
 
@@ -75,6 +77,7 @@ class Tracker(object):
         for i, det in enumerate(dets):
             for j, target in enumerate(self.targetlst):
                 x1,y1,x2,y2,det_score = det
+                x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
                 score_mat[i,j] = target.match(det, img[y1:y2,x1:x2])
         #print score_mat
         return score_mat
@@ -90,6 +93,7 @@ class Tracker(object):
         new_targets = []
         for det in dets:
             x1,y1,x2,y2,det_score = det
+            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
             if self.checkOverlap([x1,y1,x2,y2]): continue
             if det_score>init_thres:
                 self.targetidx+=1
@@ -106,13 +110,14 @@ class Tracker(object):
     def processNextImg(self, img):
         pass
 
-    def processNextImgNDets(self, img, dets):
+    def processNextImgNDets(self, img, dets, record=False):
         self.frameidx+=1
         score_mat = self.getScoreMatrix(img,dets)
         matches,unm_det_idxs,unm_target_idxs = data_associate(score_mat)
 
         for m in matches:
             x1,y1,x2,y2,det_score = dets[m[0]]
+            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
             self.targetlst[m[1]].update([x1,y1,x2,y2], img[y1:y2,x1:x2])
 
         unm_dets = [dets[i] for i in unm_det_idxs]
@@ -127,6 +132,7 @@ class Tracker(object):
     def output(self, out):
         for target in self.targetlst:
             if target.state=='live' and target.life>2:
+            #if target.life>1:
             #if target.life>0:
                 s = target.output()
                 out.write(str(self.frameidx)+','+s+'\n')
@@ -151,6 +157,13 @@ class TrackedTarget(object):
         self.state = 'live'
         self.motion = LinearMotionModel(bb)
 
+    def match_feat(self, det, patch=None):
+        bb = det[:4]
+        last_bb = self.motion.get_state()
+        iouv = iou(last_bb,bb)
+        score_a = color_sim(self.appearences[-1],patch)
+        #print iouv,score_a
+        return iouv, -10/np.minimum(score_a,-20)
 
     def match(self, det, patch=None):
         bb = det[:4]
@@ -174,12 +187,13 @@ class TrackedTarget(object):
         self.motion.update(bb)
         ### TODO memory network
 
-    def report_miss(self):
+    def report_miss(self,force=False):
         self.miss+=1
         self.state = 'miss'
         self.motion.predict()
-        if self.miss>1: self.life = 0
-        if self.miss>2: self.state = 'gone'
+        if self.miss>2: self.life = 0
+        #if self.miss>2 and not force: self.state = 'gone'
+        if self.miss>5 and not force: self.state = 'gone'
 
     def output(self):
         x1,y1,x2,y2 = self.motion.get_state()
@@ -187,51 +201,287 @@ class TrackedTarget(object):
         return s
 
 
-def bb2z(bb):
-    w = bb[2]-bb[0]
-    h = bb[3]-bb[1]
-    x = bb[0]+w/2.
-    y = bb[1]+h/2.
-    s = w*h
-    r = w/float(h)
-    return [x,y,s,r]
-    
-def z2bb(z):
-    w = np.sqrt(z[2]*z[3])
-    h = z[2]/w
-    return [z[0]-w/2.,z[1]-h/2.,z[0]+w/2.,z[1]+h/2.]
+def validDecision(mat, dnum, tnum):
+    ### detection
+    for i in range(dnum):
+        if np.sum(mat[i,:])!=1: return False
+    for j in range(tnum):
+        if np.sum(mat[:,j])!=1: return False
 
-class LinearMotionModel(object):
-    def __init__(self,bb):
-        self.bb = bb
-        self.z_his = [bb2z(bb)]
-        self.len_thres = 5
+    if np.sum(mat[dnum:,tnum:])!=0: return False
 
-    def update(self,bb):
-        self.bb = bb
-        self.z_his.append(bb2z(bb))
-        if len(self.z_his)>self.len_thres: self.z_his.pop(0)
+    for i in range(dnum):
+        for j in range(dnum):
+            if i==j: continue
+            if mat[i,tnum+j]==1 or mat[i,tnum+dnum+j]==1: return False
 
-    def predict(self):
-        self.bb = None
-        his = np.array(self.z_his)
-        if his.shape[0]==1:
-            self.z_his*=2
-        else:
-            t = np.array(range(his.shape[0]))
-            t_mean, t_var = np.mean(t), np.var(t)
-            x_mean, y_mean = np.mean(his[:,0]), np.mean(his[:,1])
-            cov_xt = np.cov(his[:,0],y=t)[0,1]
-            cov_yt = np.cov(his[:,1],y=t)[0,1]
-            ax, ay = cov_xt/t_var, cov_yt/t_var
-            bx, by = x_mean-ax*t_mean, y_mean-ay*t_mean
+    for i in range(tnum):
+        for j in range(tnum):
+            if i==j: continue
+            if mat[dnum+i,j]==1 or mat[dnum+tnum+i,j]==1: return False
 
-            x,y = ax*his.shape[0]+bx, ay*his.shape[0]+by
-            s,r = np.mean(his[:,2]), np.mean(his[:,3])
+    return True
 
-            self.z_his.append([x,y,s,r])
-            if len(self.z_his)>self.len_thres: self.z_his.pop(0)
+class StructMDPTracker(Tracker):
+    def __init__(self):
+        self.featidxs = {'match':0,'drop':5,'initial':9,'miss':12,'delete':14}
+        self.fsize = 16
+        #self.w = np.ones(self.fsize)
+        self.w = np.array([1000,0,1,0,0,20,0.01,0.01,0.01,0.05,0.05,0.05,0.2,0.2,0.1,0.1])
+        self.reset()
 
-    def get_state(self):
-        if self.bb is None: return z2bb(self.z_his[-1])
-        return self.bb
+    def checkOverlap(self,bb):
+        ioulst = [iou(bb, target.motion.get_state()) for target in self.targetlst]
+        ioulst+=[0.0]
+        return np.max(ioulst)
+
+    def generateStateMap(self, img, dets):
+        dnum,tnum = len(dets), len(self.targetlst)
+        state_map = np.zeros((dnum+2*tnum,tnum+2*dnum,self.fsize))
+        ## get state-action feature map
+        ### drop/initialize detection
+        for i,det in enumerate(dets):
+            drop_idx, init_idx = self.featidxs['drop'], self.featidxs['initial']
+            x1,y1,x2,y2,det_score = det
+            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
+            size = (x2-x1)*(y2-y1)/1000
+            overlap = self.checkOverlap([x1,y1,x2,y2])
+            state_map[i,tnum+i,drop_idx:drop_idx+4] = np.array([overlap,size,det_score,1])
+            state_map[i,tnum+dnum+i,init_idx:init_idx+3] = np.array([size,det_score,1])
+        ### report miss/delete target
+        miss_idx, delete_idx = self.featidxs['miss'], self.featidxs['delete']
+        for i,target in enumerate(self.targetlst):
+            feat = np.array([target.miss/10,1])
+            state_map[dnum+i,i,miss_idx:miss_idx+2] = feat
+            state_map[dnum+tnum+i,i,delete_idx:delete_idx+2] = feat
+        ### match det and target
+        match_idx = self.featidxs['match']
+        for i,det in enumerate(dets):
+            for j,target in enumerate(self.targetlst):
+                x1,y1,x2,y2,det_score = det
+                x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
+                iou, csim = target.match_feat(det, img[y1:y2,x1:x2])
+
+                state_map[i,j,match_idx:match_idx+5] = np.array([iou,csim,target.miss,1,1])
+        return state_map
+
+    def processNextImgNDets(self, img, dets):
+        self.frameidx+=1
+        ## build state feature tensor
+        ### default feats:
+        dnum,tnum = len(dets), len(self.targetlst)
+        state_map = self.generateStateMap(img, dets)
+
+        score_mat = state_map.dot(self.w)
+
+        #if self.frameidx==18: score_mat=state_map.dot(self.w2)
+        #if np.abs(dnum-tnum)>2: print 'fidx:',self.frameidx
+        #score_mat[np.where(score_mat!=0)] += 1
+        match_idxs = linear_assignment(-score_mat)
+
+        #print score_mat
+        #print len(self.targetlst)
+        #print self.frameidx
+        ########################
+        ### apply decisions   ##
+        ########################
+        his = np.zeros_like(self.w)
+        esti_reward = 0
+        for m in match_idxs:
+            i,j = m[0], m[1]
+            if i>=dnum and j>=tnum: continue
+            his+=state_map[i,j,:]
+            #esti_reward += score_mat[i,j]
+            #print score_mat[i,j]
+            if i<dnum:
+                x1,y1,x2,y2,det_score = dets[i]
+                x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
+                if j<tnum:  #match
+                    print 'match!'
+                    self.targetlst[j].update([x1,y1,x2,y2], img[y1:y2,x1:x2])
+                elif j>=tnum+dnum:   # initialize
+                    print 'initialize'
+                    self.targetidx+=1
+                    target = TrackedTarget(self.targetidx,[x1,y1,x2,y2],patch=img[y1:y2,x1:x2])
+                    self.targetlst.append(target)
+                else: 
+                    print 'drop'
+                    continue  # drop
+            elif i>dnum and i<dnum+tnum:   #report miss
+                print 'miss'
+                self.targetlst[j].report_miss(force=False)
+            else: #delete
+                print 'delete'
+                self.targetlst[j].state = 'gone'
+        esti_reward = np.sum(his.dot(self.w))
+        self.targetlst = [target for target in self.targetlst if target.state!='gone']
+        self.state_action_his.append(his.tolist())
+        self.esti_reward_lst.append(esti_reward)
+        #print validDecision()
+        #print self.targetidx
+        #raw_input()
+
+    def processFirstImgNDets(self, img, dets):
+        self.targetidx = 0
+        self.processNextImgNDets(img,dets)
+
+    def reset(self):
+        self.targetlst = []
+        self.frameidx = 0
+        self.state_action_his = []
+        self.esti_reward_lst = []
+
+        ### for training
+        self.state_his = []
+        self.action_his = []
+        self.feats, self.labs = [],[]
+
+    def extract_gt_decision(self,gt,dets,img,appl=True,thres=0.05):
+        dnum, tnum = len(dets), len(self.targetlst)
+        deci_map = np.zeros((dnum+2*tnum,tnum+2*dnum))
+        gtnum = len(gt)
+        det_gt_mat = np.empty((dnum,gtnum))
+        for i in range(dnum):
+            for j in range(gtnum):
+                det_gt_mat[i,j] = iou(dets[i],gt[j][2:6])
+        det_gt_matches = linear_assignment(-det_gt_mat)
+        det_gt_matches = [m for m in det_gt_matches if det_gt_mat[m[0],m[1]]>thres]
+        gt_taridx_lst = gt[:,1].tolist()
+        gt_idxs, det_idxs = range(gtnum), range(dnum)
+        ### match or initialize
+        curlst = [t.idx for t in self.targetlst]
+        for m in det_gt_matches:
+            #x1,y1,x2,y2 = gt[m[1],2:6]
+            x1,y1,x2,y2 = dets[m[0],:4]
+            x1,y1,x2,y2 = int(x1), int(y1),int(x2),int(y2)
+            if gt[m[1],1] in curlst:  ### match
+                tidx = curlst.index(gt[m[1],1])
+                deci_map[m[0],tidx] = 1
+                if appl: self.targetlst[tidx].update([x1,y1,x2,y2], img[y1:y2,x1:x2])
+            else:   ### initialize
+                targetidx = gt[m[1],1]
+                target = TrackedTarget(targetidx, [x1,y1,x2,y2], patch=img[y1:y2,x1:x2])
+                if appl: self.targetlst.append(target)
+                deci_map[m[0],tnum+dnum+m[0]] = 1
+        matched_det_lst = [m[0] for m in det_gt_matches]
+        for i in range(dnum):
+            if i not in matched_det_lst: ### drop
+                deci_map[i,tnum+i] = 1
+
+        matched_gt_lst = [m[1] for m in det_gt_matches]
+        for j,gtidx in enumerate(gt_taridx_lst):
+            if j not in matched_gt_lst: ### miss
+                if gtidx in curlst:
+                    i = curlst.index(gtidx)
+                    deci_map[dnum+i,i] = 1
+                #if not in curlst: forget it, initialize it next frame
+
+        for i,tidx in enumerate(curlst):
+            if tidx not in gt_taridx_lst:
+                self.targetlst[i].state = 'gone'
+                deci_map[dnum+tnum+i,i] = 1
+        if appl: self.targetlst = [target for target in self.targetlst if target.state!='gone']
+        return deci_map
+
+
+    ### extract ground truth history
+    def processNextGT(self, img, gt, dets):
+        self.frameidx+=1
+        state_map = self.generateStateMap(img, dets)
+        deci_map = self.extract_gt_decision(gt,dets,img,appl=False)
+        fmaplst = self.disturb_decision(deci_map, gt, dets, img)
+        shuffle(fmaplst)
+        deci_map = self.extract_gt_decision(gt,dets,img,appl=True)
+        if len(fmaplst)>0:
+            f1 = self.struct_feat(state_map,deci_map)
+            f2 = self.struct_feat(state_map,fmaplst[0])
+            f3 = self.struct_feat(state_map,fmaplst[-1])
+            self.feats+=[f1-f2,f1-f3]
+        self.state_his.append(state_map)
+        self.action_his.append(deci_map)
+        #self.labs+=[1,-1]
+        #if self.frameidx==1:
+        #    self.feats+=[f1-f2,f3-f1]*10
+        #    self.labs+=[1,-1]*10
+
+    def disturb_decision(self, deci_map, gt, dets, img):
+        dnum, gtnum, tnum = len(dets), len(gt), len(self.targetlst)
+        fmaplst = []
+
+        if gtnum>0:
+            i = np.random.choice(gtnum)
+            #dis_gt = copy.deepcopy(gt)
+            dis_gt = np.delete(gt,i,0)
+            fmaplst.append(self.extract_gt_decision(dis_gt,dets,img,appl=False))
+        
+        ### find drop, initial
+        droplst, initiallst = [],[]
+        for i in range(dnum):
+            de = deci_map[i,:].tolist().index(1)
+            if de>tnum and de<tnum+dnum: droplst.append(i)
+            elif de>tnum+dnum: initiallst.append(i)
+        if len(droplst)+len(initiallst)>0:
+            f_deci_map2 = copy.deepcopy(deci_map)
+            i = np.random.choice(droplst+initiallst)
+            f_deci_map2[i,:]*=0
+            if i in droplst: f_deci_map2[i,dnum+tnum+i] = 1
+            else: f_deci_map2[i,tnum+i] = 1
+            fmaplst.append(f_deci_map2)
+
+        ### find delete and miss
+        misslst, deletelst = [],[]
+        for i in range(tnum):
+            de = deci_map[:,i].tolist().index(1)
+            if de>dnum and de<dnum+tnum: misslst.append(i)
+            elif de>dnum+tnum: deletelst.append(i)
+        if len(misslst)+len(deletelst)>0:
+            f_deci_map3 = copy.deepcopy(deci_map)
+            i = np.random.choice(misslst+deletelst)
+            f_deci_map3[:,i]*=0
+            if i in misslst: f_deci_map3[dnum+tnum+i,i] = 1
+            else: f_deci_map3[dnum+i,i] = 1
+            fmaplst.append(f_deci_map3)
+
+        return fmaplst
+
+
+    def struct_feat(self, state_map, deci_map):
+        x,y,featnum = state_map.shape
+        feat = np.zeros((featnum,)).astype('float')
+        for i in range(x):
+            for j in range(y):
+                if deci_map[i,j] == 1: feat+=state_map[i,j,:]
+        return feat
+        
+    def process_gt_collect_data(self, img, gt, dets, w1, w2):
+        self.frameidx+=1
+        dnum, tnum = len(dets), len(self.targetlst)
+        state_map = self.generateStateMap(img, dets)
+        deci_map = self.extract_gt_decision(gt,dets,img,appl=False)
+        deci_map = self.extract_gt_decision(gt,dets,img,appl=True)
+
+        _, deci_map1 = self.get_deci_map(state_map,w1,dnum,tnum)
+        _, deci_map2 = self.get_deci_map(state_map,w2,dnum,tnum)
+
+        feat = self.struct_feat(state_map, deci_map)
+        feat1 = self.struct_feat(state_map, deci_map1)
+        feat2 = self.struct_feat(state_map, deci_map2)
+        d = np.sum(np.abs(deci_map-deci_map2))
+        #print d, deci_map.shape
+        #if d>0: self.feats.append(feat-feat2)
+        d1 = np.sum(np.abs(deci_map-deci_map1))
+        d2 = np.sum(np.abs(deci_map-deci_map2))
+        if d1>d2: self.feats.append(feat2-feat1)
+        elif d1<d2: self.feats.append(feat1-feat2)
+        #if np.sum(np.abs(deci_map-deci_map1))!=0: self.feats.append(feat-feat1)
+        #if np.sum(np.abs(deci_map-deci_map2))!=0: self.feats.append(feat-feat2)
+        
+
+    def get_deci_map(self, state_map, w, dnum, tnum):
+        score_mat = state_map.dot(w)
+        match_idxs = linear_assignment(-score_mat)
+        deci_map = np.zeros_like(score_mat)
+        for m in match_idxs:
+            if m[0]<dnum or m[1]<tnum:
+                deci_map[m[0],m[1]] = 1
+        return match_idxs, deci_map
