@@ -156,6 +156,7 @@ class TrackedTarget(object):
         self.idx, self.life, self.miss = idx, 0, 0
         self.state = 'live'
         self.motion = LinearMotionModel(bb)
+        self.gtidx = -1
 
     def match_feat(self, det, patch=None):
         bb = det[:4]
@@ -235,6 +236,40 @@ class StructMDPTracker(Tracker):
         ioulst+=[0.0]
         return np.max(ioulst)
 
+    def def_feat2(self):
+        self.featidxs = {'match':0,'drop':3,'initial':6,'miss':8,'delete':9}
+        self.fsize = 10
+
+    def genStateMap2(self, img, dets):
+        dnum, tnum = len(dets), len(self.targetlst)
+        state_map = np.zeros((dnum+2*tnum,tnum+2*dnum,self.fsize))
+        ### drop/initialize detection
+        for i,det in enumerate(dets):
+            drop_idx, init_idx = self.featidxs['drop'], self.featidxs['initial']
+            x1,y1,x2,y2,det_score = det
+            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
+            overlap = self.checkOverlap([x1,y1,x2,y2])
+            state_map[i,tnum+i,drop_idx:drop_idx+3] = np.array([overlap,det_score,1])
+            state_map[i,tnum+dnum+i,init_idx:init_idx+2] = np.array([det_score,1])
+
+        ### report miss/delete target
+        miss_idx, delete_idx = self.featidxs['miss'], self.featidxs['delete']
+        for i,target in enumerate(self.targetlst):
+            feat = np.array([1])
+            state_map[dnum+i,i,miss_idx:miss_idx+1] = feat
+            state_map[dnum+tnum+i,i,delete_idx:delete_idx+1] = feat
+        
+        ### match det and target
+        match_idx = self.featidxs['match']
+        for i,det in enumerate(dets):
+            for j,target in enumerate(self.targetlst):
+                x1,y1,x2,y2,det_score = det
+                x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
+                iou, csim = target.match_feat(det, img[y1:y2,x1:x2])
+                state_map[i,j,match_idx:match_idx+3] = np.array([iou,csim,1])
+        return state_map
+
+
     def generateStateMap(self, img, dets):
         dnum,tnum = len(dets), len(self.targetlst)
         state_map = np.zeros((dnum+2*tnum,tnum+2*dnum,self.fsize))
@@ -265,58 +300,56 @@ class StructMDPTracker(Tracker):
                 state_map[i,j,match_idx:match_idx+5] = np.array([iou,csim,target.miss,1,1])
         return state_map
 
+
+    def get_deci_map(self, state_map, w, dnum, tnum):
+        score_mat = state_map.dot(w)
+        match_idxs = linear_assignment(-score_mat)
+        deci_map = np.zeros_like(score_mat)
+        for m in match_idxs:
+            if m[0]<dnum or m[1]<tnum:
+                deci_map[m[0],m[1]] = 1
+        return match_idxs, deci_map
+
+
+    def apply_deci_map(self, deci_map, dets, img):
+        dnum,tnum = len(dets), len(self.targetlst)
+        for i in range(dnum):
+            x1,y1,x2,y2,det_score = dets[i]
+            x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
+            j = deci_map[i,:].tolist().index(1)
+            if j<tnum:
+                #print 'match!'
+                self.targetlst[j].update([x1,y1,x2,y2], img[y1:y2,x1:x2])
+            elif j>=tnum+dnum:
+                self.targetidx+=1
+                target = TrackedTarget(self.targetidx,[x1,y1,x2,y2],patch=img[y1:y2,x1:x2])
+                self.targetlst.append(target)
+                #print 'initialize!'
+            else:
+                #print 'drop!'
+                continue
+
+        for j in range(tnum):
+            i = deci_map[:,j].tolist().index(1)
+            if i>=dnum and i<dnum+tnum:   #report miss
+                #print 'miss!'
+                self.targetlst[j].report_miss(force=False)
+            elif i>=dnum+tnum:
+                self.targetlst[j].state = 'gone'
+                #print 'delete!'
+        self.targetlst = [target for target in self.targetlst if target.state!='gone']
+
+
     def processNextImgNDets(self, img, dets):
         self.frameidx+=1
-        ## build state feature tensor
-        ### default feats:
         dnum,tnum = len(dets), len(self.targetlst)
         state_map = self.generateStateMap(img, dets)
 
-        score_mat = state_map.dot(self.w)
-
-        #if self.frameidx==18: score_mat=state_map.dot(self.w2)
-        #if np.abs(dnum-tnum)>2: print 'fidx:',self.frameidx
-        #score_mat[np.where(score_mat!=0)] += 1
-        match_idxs = linear_assignment(-score_mat)
-
-        #print score_mat
-        #print len(self.targetlst)
-        #print self.frameidx
-        ########################
-        ### apply decisions   ##
-        ########################
-        his = np.zeros_like(self.w)
-        esti_reward = 0
-        for m in match_idxs:
-            i,j = m[0], m[1]
-            if i>=dnum and j>=tnum: continue
-            his+=state_map[i,j,:]
-            #esti_reward += score_mat[i,j]
-            #print score_mat[i,j]
-            if i<dnum:
-                x1,y1,x2,y2,det_score = dets[i]
-                x1,y1,x2,y2 = int(x1),int(y1),int(x2),int(y2)
-                if j<tnum:  #match
-                    print 'match!'
-                    self.targetlst[j].update([x1,y1,x2,y2], img[y1:y2,x1:x2])
-                elif j>=tnum+dnum:   # initialize
-                    print 'initialize'
-                    self.targetidx+=1
-                    target = TrackedTarget(self.targetidx,[x1,y1,x2,y2],patch=img[y1:y2,x1:x2])
-                    self.targetlst.append(target)
-                else: 
-                    print 'drop'
-                    continue  # drop
-            elif i>dnum and i<dnum+tnum:   #report miss
-                print 'miss'
-                self.targetlst[j].report_miss(force=False)
-            else: #delete
-                print 'delete'
-                self.targetlst[j].state = 'gone'
-        esti_reward = np.sum(his.dot(self.w))
-        self.targetlst = [target for target in self.targetlst if target.state!='gone']
-        self.state_action_his.append(his.tolist())
-        self.esti_reward_lst.append(esti_reward)
+        mach_idxs, deci_map = self.get_deci_map(state_map, self.w, dnum, tnum)
+        self.apply_deci_map(deci_map, dets, img)
+        #esti_reward = np.sum(his.dot(self.w))
+        #self.state_action_his.append(his.tolist())
+        #self.esti_reward_lst.append(esti_reward)
         #print validDecision()
         #print self.targetidx
         #raw_input()
@@ -335,6 +368,7 @@ class StructMDPTracker(Tracker):
         self.state_his = []
         self.action_his = []
         self.feats, self.labs = [],[]
+        self.totald = 0
 
     def extract_gt_decision(self,gt,dets,img,appl=True,thres=0.05):
         dnum, tnum = len(dets), len(self.targetlst)
@@ -453,35 +487,108 @@ class StructMDPTracker(Tracker):
                 if deci_map[i,j] == 1: feat+=state_map[i,j,:]
         return feat
         
-    def process_gt_collect_data(self, img, gt, dets, w1, w2):
+    def process_gt_collect_data(self, img, gt, dets, w1, w2=None):
         self.frameidx+=1
         dnum, tnum = len(dets), len(self.targetlst)
         state_map = self.generateStateMap(img, dets)
         deci_map = self.extract_gt_decision(gt,dets,img,appl=False)
-        deci_map = self.extract_gt_decision(gt,dets,img,appl=True)
+        feat = self.struct_feat(state_map, deci_map)
 
         _, deci_map1 = self.get_deci_map(state_map,w1,dnum,tnum)
-        _, deci_map2 = self.get_deci_map(state_map,w2,dnum,tnum)
-
-        feat = self.struct_feat(state_map, deci_map)
         feat1 = self.struct_feat(state_map, deci_map1)
-        feat2 = self.struct_feat(state_map, deci_map2)
-        d = np.sum(np.abs(deci_map-deci_map2))
+        d1 = np.sum(np.abs(deci_map-deci_map1))
+
+        if w2 is not None:
+            _, deci_map2 = self.get_deci_map(state_map,w2,dnum,tnum)
+            feat2 = self.struct_feat(state_map, deci_map2)
+            d2 = np.sum(np.abs(deci_map-deci_map2))
+
+        if d1>0: self.feats.append(feat-feat1)
+        self.totald+=d1
         #print d, deci_map.shape
         #if d>0: self.feats.append(feat-feat2)
-        d1 = np.sum(np.abs(deci_map-deci_map1))
-        d2 = np.sum(np.abs(deci_map-deci_map2))
-        if d1>d2: self.feats.append(feat2-feat1)
-        elif d1<d2: self.feats.append(feat1-feat2)
+        #if d1>d2: self.feats.append(feat2-feat1)
+        #elif d1<d2: self.feats.append(feat1-feat2)
         #if np.sum(np.abs(deci_map-deci_map1))!=0: self.feats.append(feat-feat1)
         #if np.sum(np.abs(deci_map-deci_map2))!=0: self.feats.append(feat-feat2)
         
+        deci_map = self.extract_gt_decision(gt,dets,img,appl=True)
 
-    def get_deci_map(self, state_map, w, dnum, tnum):
-        score_mat = state_map.dot(w)
-        match_idxs = linear_assignment(-score_mat)
-        deci_map = np.zeros_like(score_mat)
-        for m in match_idxs:
-            if m[0]<dnum or m[1]<tnum:
-                deci_map[m[0],m[1]] = 1
-        return match_idxs, deci_map
+    def process_img_collect_data(self,img, gt, gt_1, dets):
+        self.frameidx+=1
+        dnum,tnum = len(dets), len(self.targetlst)
+        state_map = self.generateStateMap(img, dets)
+
+        mach_idxs, deci_map = self.get_deci_map(state_map, self.w, dnum, tnum)
+
+        deci_map_gt = self.deci_approach_gt(dets, gt, gt_1)
+        d = np.sum(np.abs(deci_map-deci_map_gt))
+        self.apply_deci_map(deci_map, dets, img)
+
+        feat = self.struct_feat(state_map, deci_map)
+        feat_gt = self.struct_feat(state_map, deci_map_gt)
+        if d>2 and d<6: self.feats.append(feat_gt-feat)
+
+
+    ### make a decision so that the current state approaches ground truth
+    def deci_approach_gt(self, dets, gt, gt_1=[]):
+        dnum, tnum = len(dets), len(self.targetlst)
+        deci_map = np.zeros((dnum+2*tnum,tnum+2*dnum))
+
+        ### align current targets to gt_1
+        gtnum_1 = len(gt_1)
+        if gtnum_1==0: target_gidxs = []
+        else:
+            mat_1 = np.zeros((tnum,gtnum_1))
+            for i in range(tnum):
+                bb = self.targetlst[i].motion.get_state()
+                for j in range(gtnum_1):
+                    mat_1[i,j] = iou(bb,gt_1[j][2:6])
+            match_1 = linear_assignment(-mat_1)
+            for m in match_1:
+                i,j = m[0],m[1]
+                if mat_1[i,j]>0.1: self.targetlst[i].gtidx = gt_1[j][1]
+            target_gidxs = [self.targetlst[i].gtidx for i in range(len(self.targetlst))]
+               
+
+        ### align dets to gt
+        gtnum = len(gt)
+        mat_det_gt = np.zeros((dnum,gtnum))
+        for i in range(dnum):
+            for j in range(gtnum):
+                mat_det_gt[i,j] = iou(dets[i],gt[j][2:6])
+        match_det_gt = linear_assignment(-mat_det_gt)
+        gtlst = gt[:,1].tolist()
+        
+        ### infer decisions
+        gt_match_lst = [m[1] for m in match_det_gt]
+        for i in range(tnum):
+            target = self.targetlst[i]
+            if target.gtidx not in gtlst:
+                #print 'gt: delete'
+                deci_map[dnum+tnum+i,i] = 1
+            else:
+                j = gtlst.index(target.gtidx)
+                if j in gt_match_lst:
+                    l = gt_match_lst.index(j)
+                    k = match_det_gt[l][0]
+                    #print 'gt: match'
+                    deci_map[k,i] = 1
+                else:
+                    #print 'gt: miss'
+                    deci_map[dnum+i,i] = 1
+
+        det_match_lst = [m[0] for m in match_det_gt]
+        for i in range(dnum):
+            if i not in det_match_lst:
+                #print 'gt: drop'
+                deci_map[i, tnum+i] = 1
+            else:
+                l = det_match_lst.index(i)
+                k = match_det_gt[l][1]
+                gidx = gt[k,1]
+                if gidx not in target_gidxs:
+                    #print 'gt: initialize'
+                    deci_map[i, tnum+dnum+i] = 1
+
+        return deci_map
