@@ -92,6 +92,7 @@ def test():
 def test_w(w,seq_list):
     for i,seq in enumerate(seq_list):
         print 'Tracking ',seq
+        #tracker = Tracker()
         tracker = StructMDPTracker()
         tracker.w = np.array(w)
         #detfn = datadir+'/'+seq+'/det/det.txt'
@@ -102,11 +103,13 @@ def test_w(w,seq_list):
         #plot_detection(gtfn,imdir)
     
         outfile = file(outfn,'w')
-        for frid,img,patchlst,dets in yieldMOTImgDet(detfn,imdir):
+        #for frid,img,patchlst,dets in yieldMOTImgDet(detfn,imdir):
+        for frid,dets in yieldMOTDet(detfn):
             if frid==1:
-                tracker.processFirstImgNDets(img,dets)
+                tracker.processFirstImgNDets(None,dets)
+                #tracker.initFirstImg(None,dets)
             else:
-                tracker.processNextImgNDets(img,dets)
+                tracker.processNextImgNDets(None,dets)
             tracker.output(outfile)
         outfile.close()
         res = mot_evaluate(gtfn, outfn)
@@ -151,15 +154,36 @@ def test_gt2(w):
         outfn = 'output/'+seq+'.txt'
         for frid,patchlst,img,dets,gt in yieldMOTDetNGt(detfn,imdir,gtfn):
             if frid==1:
-                tracker.processFirstImgNDets(img,dets)
+                tracker.processFirstImgNDets(None,dets)
             else:
-                tracker.process_img_collect_data(img, gt, gt_1, dets)
+                tracker.process_img_collect_data(None, gt, gt_1, dets)
             gt_1 = gt
-        featlst+=tracker.feats
-        if i==1: break
+
+        
+        featlst_i = tracker.feats
+        dlst = tracker.dlst
+        idxs = sorted(range(len(featlst_i)), key=lambda j:dlst[j],reverse=False)
+        featlst_i = [featlst_i[j] for j in idxs]
+        l = np.minimum(20, len(featlst_i))
+        featlst+=featlst_i[:l]
+        
+        #featlst+=tracker.feats
+
+        if i==0: break
     feats = np.array(featlst)
     print feats.shape
     return feats
+
+def safe_pickle_dump(a, fn):
+    f = open(fn,'wb')
+    pickle.dump(a,f)
+    f.close()
+
+def safe_pickle_load(fn):
+    f = open(fn,'rb')
+    a = pickle.load(f)
+    f.close()
+    return a
     
 
 def test_gt():
@@ -182,10 +206,10 @@ def test_gt():
         featlst+=tracker.feats
         #res = mot_evaluate(gtfn, outfn)
         #print res['mota'][0]
-        if i==1: break
+        if i==0: break
     feats = np.array(featlst)
     print feats.shape
-    pickle.dump(feats,open('feats_gt.pkl','wb'))
+    safe_pickle_dump(feats,'feats_gt.pkl')
     #return w
 
 def iterative_train(it=3):
@@ -215,27 +239,41 @@ def uniform_sample(feats):
 if __name__=='__main__':
     #tesat()
     #training()
-    #test_gt()
+    test_gt()
     #test_collect()
-    
-    #wlst = iterative_train(it=2)
-    #feats = pickle.load(open('feats_accu.pkl','rb'))
-    feats = pickle.load(open('feats_gt.pkl','rb'))
-    #feats = pickle.load(open('feats.pkl','rb'))
-    #datanum,_ = feats.shape
-    #w = np.array([1000,0,1,0,0,20,0.01,0.01,0.01,0.05,0.05,0.05,0.2,0.2,0.1,0.1])/10000
-    #print objective_tracking(w,feats,0.01)
-    #print feats.shape
-    #test_w(w,train_seq_list)
-    #w = solve_tracking_qp(feats, 0.001)
 
     
-    w = solve_tracking_qp(feats, 0.001)
-    w = np.array(w)
+    feats = safe_pickle_load('feats_gt.pkl')
+    #feats = pickle.load(open('feat_backup/feats_gt.pkl','rb'))
+    ### random sample
+    #datanum,_ = feats.shape
+    #idxs = np.random.choice(datanum,500,replace=False)
+    #feats = feats[:150,:]
+    
+    
+    #feats[:,1] = 0
+
+    print feats.shape
+    
+    #w = solve_tracking_qp(feats, 0.001)
+    for i in range(5):
+        w = solve_tracking_qp(feats, 10)
+        print w
+        feats2 = test_gt2(w)
+        print feats2.shape
+        feats = np.concatenate((feats,feats2),axis=0)
+
+    
     print 'testing..'
+    #feats[:,1] = 0
+    print feats.shape
+    #w = solve_tracking_qp(feats, 0.1)
+    w = solve_tracking_qp(feats, 10)
+    print w
     print zero_one_loss(feats,w)
+    
+    #w = np.array([0.292,0,0,0.377,0.377,0,0,0,0,0.000153,0.00296,0,0,0.207,0,0])
+    #w = np.array([1.0,0,0,0,0.1,0,0,0,0,0,0.15,0,0.15,0,0])
     test_w(w,train_seq_list)
     test_w(w,valid_seq_list)
-    pickle.dump(feats,open('feats_curr.pkl','wb'))
     
-

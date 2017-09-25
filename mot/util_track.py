@@ -3,6 +3,29 @@ import numpy as np
 from skimage import io
 import cv2
 
+def getPatches(img, dets):
+    patchlst = []
+    for i,det in enumerate(dets):
+        x1,y1,x2,y2 = int(det[0]),int(det[1]),int(det[2]),int(det[3])
+        patch = img[y1:y2,x1:x2]
+        patchlst.append(patchlst)
+    return patchlst
+    
+
+def yieldMOTDetNGt(detfn, img_dir, gtfn):
+    seq_dets = np.loadtxt(detfn,delimiter=',')
+    seq_gt = np.loadtxt(gtfn,delimiter=',')
+    for frame in range(int(seq_dets[:,0].max())):
+        frame += 1
+        dets = seq_dets[seq_dets[:,0]==frame,2:7]
+        gt = seq_gt[seq_gt[:,0]==frame,:]
+        dets[:,2:4] += dets[:,0:2]
+        gt[:,4:6] += gt[:,2:4]
+        imgfn = img_dir+str(frame).zfill(6)+'.jpg'
+        img = io.imread(imgfn)
+        patchlst = getPatches(img, dets)
+        yield frame, patchlst, img, dets, gt
+
 def yieldMOTDet(fn):
     seq_dets = np.loadtxt(fn,delimiter=',')
     for frame in range(int(seq_dets[:,0].max())):
