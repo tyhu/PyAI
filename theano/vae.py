@@ -18,7 +18,8 @@ class hVAE(object):
         x = T.tensor3()
         x_test = T.matrix()
         h, c, ll_test, cost, params = buildHVAE(x, x_test, struct_h, struct_c)
-        updates = updatefunc(cost, params.values(), lr=lr, momentum=momentum)
+        #updates = updatefunc(cost, params.values(), lr=lr, momentum=momentum)
+        updates = adaGrad(cost, params.values(), lr=lr)
         self.train = theano.function([x], cost, updates=updates)
         self.encode_ = theano.function([x], h)
         self.encode_c_ = theano.function([x], c)
@@ -107,7 +108,7 @@ def buildHVAE(x, x_test, struct_h, struct_c):
     #cost = T.mean(KLD_norm(h_mu, h_sig)) + T.mean(KLD_bernoulli(c_dis))
     #cost = KLD_bernoulli(c_dis)
     #cost += KLD_bernoulli(c_dis)
-    cost = -T.mean(bnl_ll(x, x_dis))+T.mean(KLD_bernoulli(c_dis))+0.1*T.mean(KLD_norm(h_mu, h_sig))
+    cost = -T.mean(bnl_ll(x, x_dis))+0.1*T.mean(KLD_bernoulli(c_dis))+0.01*T.mean(KLD_norm(h_mu, h_sig))
 
     ### p(x_test|x) estimator
     ### P(x|X) ~= \sum_c(p(x,c|h)), where h = q(h|X)
@@ -116,7 +117,7 @@ def buildHVAE(x, x_test, struct_h, struct_c):
     hc_test = T.concatenate([h_test,c_test],axis=2)
     x_dis_test = addSigmoidFullLayer(hc_test, params['Wx'], params['bx'])
     x_test = x_test.dimshuffle(0,'x',1).repeat(csize, axis=1)
-    ll_test = T.mean(T.mean(x_test*T.log(x_dis_test)+(1-x_test)*T.log(1-x_dis_test),axis=2),axis=1)
+    ll_test = T.mean(T.sum(x_test*T.log(x_dis_test)+(1-x_test)*T.log(1-x_dis_test),axis=2),axis=1)
 
     return h_mu, c_dis, ll_test, cost, params
 

@@ -45,6 +45,11 @@ def l1norm(params):
         l1 = l1+abs(param).sum()
     return l1
 
+def biasedMSE(ytest,ypred):
+    mask = (ytest<=0)
+    mask2 = (ytest>0)
+    return T.mean(T.sum(((ytest-ypred)**2)*mask*0.0001+((ytest-ypred)**2)*mask2,axis=1))
+
 def MSE(ytest,ypred):
     dnum = ytest.shape[0]
     return T.sum(T.pow(ytest-ypred,2))/dnum

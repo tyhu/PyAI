@@ -45,3 +45,7 @@ def ngram_stats(ngrams):
 
 def isASCII(s):
     return all(ord(char) < 128 for char in s)
+
+def to_utf8(s):
+    if isinstance(text, unicode): return text.encode('utf-8')
+    else: return text.decode('utf-8').encode('utf-8')

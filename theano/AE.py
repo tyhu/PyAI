@@ -28,7 +28,20 @@ class AutoEncoder(object):
 
         updates = updatefunc(cost, params, lr=lr, momentum=momentum)
         self.train = theano.function([x,xtar], cost, updates=updates)
+        self.cost_ = theano.function([x,xtar],cost)
         self.transform_ = theano.function([x], h)
+
+    def cost(self,X,Xtar):
+        X = floatX(X)
+        Xtar = floatX(Xtar)
+        cost = self.cost_(X,Xtar)
+        return cost
+        
+
+    def fit_batch(self,X):
+        X = floatX(X)
+        cost = self.train(X,X)
+        return cost
 
     """
     X -- training data in shape (datanum, featnum) (numpy array)
@@ -64,7 +77,7 @@ class AutoEncoder(object):
         X = floatX(X)
         return self.transform_(X)
 
-def buildAE(x,xtar,We,be,Wd,bd,activation='sigmoid',ld2=0.001, tied=True):
+def buildAE(x,xtar,We,be,Wd,bd,activation='sigmoid',ld2=0.001, tied=False):
     h = T.dot(x,We)+be
 
     if activation is 'sigmoid':
@@ -85,7 +98,8 @@ def buildAE(x,xtar,We,be,Wd,bd,activation='sigmoid',ld2=0.001, tied=True):
     if tied: params = [We,be,bd]
     else: params = [We,be,Wd,bd]
 
-    cost = MSE(xtar,xout)+l2norm([We])*ld2
+    #cost = MSE(xtar,xout)+l2norm([We])*ld2
+    cost = MSE(xtar,xout)
     return h, cost, params
 
 '''

@@ -110,6 +110,18 @@ def updatefunc(cost, params, lr, momentum):
         updates.append((p, p + v))
     return updates
 
+def adaGrad(cost, params, lr, epsilon=1e-6):
+    grads = theano.grad(cost, params)
+    updates = []
+    for p, g in zip(params, grads):
+        value = p.get_value(borrow=True)
+        accu = theano.shared(np.zeros(value.shape, dtype=value.dtype),
+                                     broadcastable=p.broadcastable)
+        accu_new = accu + g ** 2
+        p_new = p - (lr*g/T.sqrt(accu_new + epsilon))
+        updates.append((accu,accu_new))
+        updates.append((p,p_new))
+    return updates
 
 def kernelNorm(x,K):
     return T.dot(x.T,T.dot(K,x))

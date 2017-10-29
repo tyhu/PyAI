@@ -79,3 +79,11 @@ def buildTripletEmb(x1,x2,x3,struct,alpha=0.1):
 
     return ltest, cost, params, bn_updates
 
+"""
+x's: input theano tensor
+    X: anchor example sets
+    xp: positive examples
+    xn: negative examples
+"""
+#def buildSetEmb(X, xp, xn, struct):
+    
