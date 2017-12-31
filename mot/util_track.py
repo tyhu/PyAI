@@ -3,6 +3,27 @@ import numpy as np
 from skimage import io
 import cv2
 
+def get_all_subgraphs(adj_mat):
+    num = adj_mat.shape[0]
+
+    nblsts = []
+    for i in range(num):
+        nblst = [j for j in range(num) if adj_mat[i,j]==1]
+        nblsts.append(nblst)
+
+    clus = [-1]*num
+    for i in range(num):
+        if clus[i]!=-1: continue
+        clus[i] = idx
+        qu,quidx = [i],0
+        while quidx<len(qu):
+            for qi in nblsts[qu[quidx]]:
+                if qi not in qu: qu.append(qi)
+            quidx+=1
+        for qi in qu: clus[qi] = idx
+        idx+=1
+    return clus
+
 def getPatches(img, dets):
     patchlst = []
     for i,det in enumerate(dets):
