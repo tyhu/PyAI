@@ -3,22 +3,50 @@ import numpy as np
 from skimage import io
 import cv2
 
+def vis_track(img,bboxes,tar_idxs,codes):
+    for i, tar_idx in enumerate(tar_idxs):
+        code = codes[tar_idx%len(codes)]
+        bb = bboxes[i]
+        x1,y1,x2,y2 = bb[0],bb[1],bb[2],bb[3]
+        cv2.rectangle(img,(x1,y1),(x2,y2),code,2)
+    img = cv2.resize(img,None,fx=0.5,fy=0.5)
+    cv2.imshow('track', img)
+    cv2.waitKey(-1)
+
+    
+def colorcodes(scale=8):
+    lst = []
+    step = 256/scale
+    for i in range(scale):
+        for j in range(scale):
+            for k in range(scale): lst.append((i*step,j*step,k*step))
+    from random import shuffle
+    shuffle(lst)
+    return lst
+
+"""
+adj_mat: lil_matrix or csr_matrix
+"""
 def get_all_subgraphs(adj_mat):
     num = adj_mat.shape[0]
 
     nblsts = []
     for i in range(num):
-        nblst = [j for j in range(num) if adj_mat[i,j]==1]
+        #nblst = [j for j in range(num) if adj_mat[i,j]==1]
+        nblst = adj_mat.getrow(i).nonzero()[1].tolist()
         nblsts.append(nblst)
 
     clus = [-1]*num
+    idx = 0
     for i in range(num):
         if clus[i]!=-1: continue
         clus[i] = idx
-        qu,quidx = [i],0
+        qu,quset,quidx = [i],set([i]),0
         while quidx<len(qu):
             for qi in nblsts[qu[quidx]]:
-                if qi not in qu: qu.append(qi)
+                if qi not in quset:
+                    qu.append(qi)
+                    quset.add(qi)
             quidx+=1
         for qi in qu: clus[qi] = idx
         idx+=1
