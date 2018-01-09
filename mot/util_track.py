@@ -57,7 +57,7 @@ def getPatches(img, dets):
     for i,det in enumerate(dets):
         x1,y1,x2,y2 = int(det[0]),int(det[1]),int(det[2]),int(det[3])
         patch = img[y1:y2,x1:x2]
-        patchlst.append(patchlst)
+        patchlst.append(patch)
     return patchlst
     
 
