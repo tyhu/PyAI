@@ -43,7 +43,7 @@ def iou(bb_test,bb_gt):
     return o
 
 
-def data_associate(score_mat):
+def data_associate(score_mat, match_thres=0.3):
     detnum,targetnum = score_mat.shape
     matched_indices = linear_assignment(-score_mat)
     #print score_mat
@@ -57,7 +57,6 @@ def data_associate(score_mat):
             unm_targets.append(t)
 
     matches = []
-    match_thres = 0.3
     for m in matched_indices:
         if(score_mat[m[0],m[1]])<match_thres:
             unm_dets.append(m[0])
